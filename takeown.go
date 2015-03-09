@@ -1,69 +1,11 @@
 package main
 
-/*
-#define _POSIX_SOURCE
-#include <sys/types.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pwd.h>
-#include <unistd.h>
-#include <mntent.h>
-#include <linux/limits.h>
-
-int name_to_uid(char const *name, uid_t *uid)
-{
-  if (!name) {
-    return 0;
-  }
-  long const buflen = sysconf(_SC_GETPW_R_SIZE_MAX);
-  if (buflen == -1) {
-    return 0;
-  }
-  char buf[buflen];
-  struct passwd pwbuf, *pwbufp;
-  if (0 != getpwnam_r(name, &pwbuf, buf, buflen, &pwbufp)
-      || !pwbufp) {
-    return 0;
-  }
-  *uid = pwbufp->pw_uid;
-  return 1;
-}
-
-// Caller must free returned char* unless it's null.
-char * uid_to_name(uid_t uid)
-{
-  long const buflen = sysconf(_SC_GETPW_R_SIZE_MAX);
-  if (buflen == -1) {
-    return NULL;
-  }
-  char buf[buflen];
-  struct passwd pwbuf, *pwbufp;
-  if (0 != getpwuid_r(uid, &pwbuf, buf, buflen, &pwbufp)
-      || !pwbufp) {
-    return NULL;
-  }
-  char * pwname = malloc(strlen(pwbufp->pw_name) + 1);
-  if (pwname == NULL) {
-    return NULL;
-  }
-  memcpy(pwname, pwbufp->pw_name, strlen(pwbufp->pw_name) + 1);
-  return pwname;
-}
-*/
-import "C"
-
-import "encoding/json"
-import "errors"
 import "flag"
 import "fmt"
-import "io/ioutil"
 import "os"
 import "path/filepath"
-import "strconv"
 import "strings"
 import "syscall"
-import "unsafe"
 
 const (
 	Success          = 0
@@ -73,40 +15,18 @@ const (
 	PermissionDenied = 128
 )
 
-const TAKEOWN_STORAGE = ".takeown.delegations"
-
 var addFlag = flag.Bool("a", false, "add a delegation for a specific user and path")
 var listFlag = flag.Bool("l", false, "list user delegations established on paths")
 var deleteFlag = flag.Bool("d", false, "remove a delegation for a specific user and path")
 var recurseFlag = flag.Bool("r", false, "take ownership recursively")
 var simulateFlag = flag.Bool("s", false, "simulate taking ownership")
 
-var uidDoesNotExist = errors.New("UID has no corresponding user name")
-var usernameDoesNotExist = errors.New("user name has no corresponding UID")
-
 type SubpathRelativeToVolume string
-type Uid uint32
 type PotentialPathname string
 type AbsolutePathname string
 type AbsoluteMaybeResolvedPathname AbsolutePathname
 type AbsoluteResolvedPathname AbsoluteMaybeResolvedPathname
 type VolumePath AbsoluteResolvedPathname
-type PotentialUsername string
-type Username string
-type UsernameOrStringifiedUid string
-type Mountpoint AbsolutePathname
-
-type OwnershipDelegation struct {
-	Object   SubpathRelativeToVolume
-	Delegate Uid
-}
-
-func (o *OwnershipDelegation) matches(p SubpathRelativeToVolume, u Uid) bool {
-	if o.Object == p && o.Delegate == u {
-		return true
-	}
-	return false
-}
 
 func contains(container, path AbsoluteResolvedPathname) (bool, error) {
 	containerx, err := filepath.Abs(string(container))
@@ -118,12 +38,6 @@ func contains(container, path AbsoluteResolvedPathname) (bool, error) {
 		return false, err
 	}
 	return strings.HasPrefix(pathx, containerx+string(os.PathSeparator)), nil
-}
-
-type OwnershipDelegations struct {
-	volume      VolumePath
-	delegations []OwnershipDelegation
-	fsid        syscall.Fsid
 }
 
 type StatedPathname struct {
@@ -168,77 +82,6 @@ func stringsToPotentialPathnames(x []string) []PotentialPathname {
 	return m
 }
 
-// mounts returns a list of mount points
-func mounts() []Mountpoint {
-	var mounts []Mountpoint
-	mtab := C.CString("/etc/mtab")
-	r := C.CString("r")
-	stream := C.setmntent(mtab, r)
-	for {
-		mntent := C.getmntent(stream) //, &mntbuf, &buf, buflen)
-		if mntent == nil {
-			break
-		}
-		mntpnt := C.GoString(mntent.mnt_dir)
-		mounts = append(mounts, Mountpoint(mntpnt))
-	}
-	C.endmntent(stream)
-	return mounts
-}
-
-// userToUid takes an UNIX UID and looks its name up.  If lookup fails, it
-// returns an error explaining the failure.
-func uidToUser(uid Uid) (Username, error) {
-	var user string
-	username := C.uid_to_name(C.uid_t(uid))
-	if username == nil {
-		return Username(""), uidDoesNotExist
-	}
-	user = C.GoString(username)
-	C.free(unsafe.Pointer(username))
-	return Username(user), nil
-}
-
-func uidToUserOrStringifiedUid(uid Uid) UsernameOrStringifiedUid {
-	username, err := uidToUser(uid)
-	if err != nil {
-		return UsernameOrStringifiedUid(fmt.Sprintf("%d", uid))
-	}
-	return UsernameOrStringifiedUid(username)
-}
-
-// uidToUser takes an UNIX user name and looks its UID up.  If lookup fails,
-// it returns an error explaining the failure.
-func userToUid(username PotentialUsername) (Uid, error) {
-	var uid C.uid_t
-	ucs := C.CString(string(username))
-	defer C.free(unsafe.Pointer(ucs))
-	worked := C.name_to_uid(ucs, &uid)
-	if worked != 1 {
-		return 0, usernameDoesNotExist
-	}
-	return Uid(uid), nil
-}
-
-func userToUidOrStringUid(username PotentialUsername) (Uid, error) {
-	uid, err := userToUid(username)
-	if err != nil {
-		uuid, err := strconv.Atoi(string(username))
-		if err != nil {
-			return 0, usernameDoesNotExist
-		}
-		if uuid < 0 {
-			return 0, usernameDoesNotExist
-		}
-		return Uid(uuid), nil
-	}
-	return Uid(uid), nil
-}
-
-func DelegationsFile(v VolumePath) string {
-	return filepath.Join(string(v), TAKEOWN_STORAGE)
-}
-
 func relativeToVolume(vol VolumePath, p AbsolutePathname) (SubpathRelativeToVolume, error) {
 	x, err := filepath.Rel(string(vol), string(p))
 	return SubpathRelativeToVolume(x), err
@@ -264,200 +107,6 @@ func findContainingVolume(file AbsolutePathname) (VolumePath, error) {
 		return findContainingVolume(AbsolutePathname(filepath.Dir(string(res))))
 	}
 	return VolumePath(res), nil
-}
-
-func LookupDelegationsForPath(file PotentialPathname) (*OwnershipDelegations, error) {
-	p, err := absolutizePath(file)
-	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path: %v\n", err)
-	}
-	container, err := findContainingVolume(p)
-	if err != nil {
-		return nil, fmt.Errorf("error looking up volume: %v\n", err)
-	}
-	return loadDelegations(container)
-}
-
-func loadDelegations(filesystem VolumePath) (*OwnershipDelegations, error) {
-	var d OwnershipDelegations
-
-	var statfsdata syscall.Statfs_t
-	err := syscall.Statfs(string(filesystem), &statfsdata)
-	if err != nil {
-		return nil, fmt.Errorf("cannot statvfs %s: %v", filesystem, err)
-	}
-	d.fsid = statfsdata.Fsid
-
-	p := DelegationsFile(filesystem)
-	f, err := os.Open(string(p))
-	if err != nil {
-		if os.IsNotExist(err) {
-			d.volume = VolumePath(filesystem)
-			return &d, nil
-		}
-		return nil, fmt.Errorf("while opening %s: %v", p, err)
-	}
-	defer f.Close()
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, fmt.Errorf("while reading %s: %v", p, err)
-	}
-	err = json.Unmarshal(data, &d.delegations)
-	if err != nil {
-		return nil, fmt.Errorf("while parsing %s: %v", p, err)
-	}
-	d.volume = VolumePath(filesystem)
-	return &d, nil
-}
-
-func (d *OwnershipDelegations) Add(username PotentialUsername, file PotentialPathname) error {
-	uid, err := userToUidOrStringUid(username)
-	if err != nil {
-		return fmt.Errorf("cannot look up user %s: %v", username, err)
-	}
-
-	p, err := absolutizePath(file)
-	if err != nil {
-		return fmt.Errorf("cannot inspect %s: %v", file, err)
-	}
-
-	r, err := resolveSymlinks(p)
-	if err != nil {
-		return fmt.Errorf("cannot inspect %s: %v", file, err)
-	}
-
-	strkt, err := statWithFileInfo(PotentialPathname(r))
-	if err != nil {
-		return fmt.Errorf("cannot stat %s: %v", file, err)
-	}
-	if strkt.fsid != d.fsid {
-		return fmt.Errorf("file %s is not contained in volume %s", file, d.volume)
-	}
-
-	relPath, err := relativeToVolume(d.volume, AbsolutePathname(p))
-	if err != nil {
-		return fmt.Errorf("cannot determine relative path for %s: %v", file, err)
-	}
-
-	if !d.present(relPath, Uid(uid)) {
-		d.delegations = append(d.delegations, OwnershipDelegation{SubpathRelativeToVolume(relPath), Uid(uid)})
-	}
-	return nil
-}
-
-func (d *OwnershipDelegations) Remove(username PotentialUsername, file PotentialPathname) error {
-	uid, err := userToUidOrStringUid(username)
-	if err != nil {
-		return fmt.Errorf("cannot lookup user %s: %v", username, err)
-	}
-
-	p, err := absolutizePath(file)
-	if err != nil {
-		return fmt.Errorf("cannot inspect %s: %v", file, err)
-	}
-
-	r, err := resolveSymlinks(p)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("cannot resolve symlinks %s: %v", file, err)
-		}
-		r = AbsoluteResolvedPathname(p)
-	}
-
-	relPath, err := relativeToVolume(d.volume, AbsolutePathname(r))
-	if err != nil {
-		return fmt.Errorf("cannot determine relative path for %s: %v", file, err)
-	}
-
-	found := false
-	var newdels []OwnershipDelegation
-	for _, del := range d.delegations {
-		if del.matches(SubpathRelativeToVolume(relPath), uid) {
-			found = true
-			continue
-		}
-		newdels = append(newdels, del)
-	}
-	d.delegations = newdels
-	if !found {
-		return fmt.Errorf("cannot find delegation on %s for user %s", p, username)
-	}
-	return nil
-}
-
-func (d *OwnershipDelegations) CanTakeOwnership(uid Uid, file StatedPathname) (Uid, Uid, error) {
-	p, err := absolutizePath(file.path)
-	if err != nil {
-		return 0, 0, fmt.Errorf("cannot inspect %s: %v", file, err)
-	}
-
-	r, err := resolveSymlinks(p)
-	if err != nil {
-		return 0, 0, fmt.Errorf("cannot inspect %s: %v", file, err)
-	}
-
-	relPath, err := relativeToVolume(d.volume, AbsolutePathname(r))
-	if err != nil {
-		return 0, 0, fmt.Errorf("cannot determine relative path for %s: %v", file.path, err)
-	}
-
-	if file.fsid != d.fsid {
-		return 0, 0, fmt.Errorf("file %s is not contained in volume %s", file.path, d.volume)
-	}
-
-	if isAdmin() {
-		return Uid(os.Getuid()), Uid(file.gid), nil
-	}
-
-	for _, del := range d.delegations {
-		if del.Delegate != uid {
-			continue
-		}
-		if del.Object == SubpathRelativeToVolume(relPath) {
-			return uid, Uid(file.gid), nil
-		}
-		container := filepath.Join(string(d.volume), string(del.Object))
-		contained, err := contains(AbsoluteResolvedPathname(container), r)
-		if err != nil {
-			return 0, 0, err
-		}
-		if contained {
-			return uid, Uid(file.gid), nil
-		}
-	}
-	return 0, 0, fmt.Errorf("cannot take ownership of %s: permission denied", file.path)
-}
-
-func (d *OwnershipDelegations) present(p SubpathRelativeToVolume, uid Uid) bool {
-	for _, delegation := range d.delegations {
-		if delegation.Object == p && delegation.Delegate == uid {
-			return true
-		}
-	}
-	return false
-}
-
-func (d *OwnershipDelegations) Save() error {
-	if d.volume == "" {
-		return fmt.Errorf("delegations cannot be saved unless associated with a volume")
-	}
-	p := DelegationsFile(d.volume)
-	if len(d.delegations) == 0 {
-		err := os.Remove(p)
-		if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("while eliminating %s: %v", p, err)
-		}
-		return nil
-	}
-	data, err := json.Marshal(d.delegations)
-	if err != nil {
-		return fmt.Errorf("while marshaling delegations: %v", err)
-	}
-	err = ioutil.WriteFile(p, data, 0600)
-	if err != nil {
-		return fmt.Errorf("while writing %s: %v", p, err)
-	}
-	return nil
 }
 
 func isAdmin() bool {
