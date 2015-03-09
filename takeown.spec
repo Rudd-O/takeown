@@ -1,4 +1,4 @@
-%define ver 0.0.1
+%define ver 0.0.2
 %define rel 1
 
 Summary:        A tool to delegate file ownership to non-administrators
@@ -14,7 +14,7 @@ BuildRequires:  golang, python
 
 %package kde
 Summary:        Context menus for KDE file managers to run takeown
-Requires:       kde-filesystem, zenity
+Requires:       kde-filesystem, zenity, python, %{name}
 
 %description
 takeown is a simple command-line tool that allows non-administrators to take
