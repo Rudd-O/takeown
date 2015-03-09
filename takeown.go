@@ -441,11 +441,18 @@ func (d *OwnershipDelegations) Save() error {
 	if d.volume == "" {
 		return fmt.Errorf("delegations cannot be saved unless associated with a volume")
 	}
+	p := DelegationsFile(d.volume)
+	if len(d.delegations) == 0 {
+		err := os.Remove(p)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("while eliminating %s: %v", p, err)
+		}
+		return nil
+	}
 	data, err := json.Marshal(d.delegations)
 	if err != nil {
-		return fmt.Errorf("while marshaling %v: %v", d.delegations, err)
+		return fmt.Errorf("while marshaling delegations: %v", err)
 	}
-	p := DelegationsFile(d.volume)
 	err = ioutil.WriteFile(p, data, 0600)
 	if err != nil {
 		return fmt.Errorf("while writing %s: %v", p, err)
