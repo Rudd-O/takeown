@@ -246,14 +246,10 @@ func relativeToVolume(vol VolumePath, p AbsolutePathname) (SubpathRelativeToVolu
 
 // findContainingVolume will return the volume path that contains the file
 // after resolving all the symlinks intermediating access to the file.
-func findContainingVolume(file PotentialPathname) (VolumePath, error) {
-	p, err := absolutizePath(file)
+func findContainingVolume(file AbsolutePathname) (VolumePath, error) {
+	res, err := resolveSymlinks(file)
 	if err != nil {
-		return "", err
-	}
-	res, err := resolveSymlinks(p)
-	if err != nil {
-		return findContainingVolume(PotentialPathname(filepath.Dir(string(p))))
+		return findContainingVolume(AbsolutePathname(filepath.Dir(string(file))))
 	}
 	var thisstat, parentstat syscall.Statfs_t
 	thiserr := syscall.Statfs(string(res), &thisstat)
@@ -265,12 +261,24 @@ func findContainingVolume(file PotentialPathname) (VolumePath, error) {
 		return "", fmt.Errorf("cannot statvfs %s: %v", res, parenterr)
 	}
 	if thisstat.Fsid == parentstat.Fsid && filepath.Dir(string(res)) != string(res) {
-		return findContainingVolume(PotentialPathname(filepath.Dir(string(res))))
+		return findContainingVolume(AbsolutePathname(filepath.Dir(string(res))))
 	}
 	return VolumePath(res), nil
 }
 
-func LoadDelegations(filesystem VolumePath) (*OwnershipDelegations, error) {
+func LookupDelegationsForPath(file PotentialPathname) (*OwnershipDelegations, error) {
+	p, err := absolutizePath(file)
+	if err != nil {
+		return nil, fmt.Errorf("error getting absolute path: %v\n", err)
+	}
+	container, err := findContainingVolume(p)
+	if err != nil {
+		return nil, fmt.Errorf("error looking up volume: %v\n", err)
+	}
+	return loadDelegations(container)
+}
+
+func loadDelegations(filesystem VolumePath) (*OwnershipDelegations, error) {
 	var d OwnershipDelegations
 
 	var statfsdata syscall.Statfs_t
@@ -486,15 +494,9 @@ func _takeOwnership(file PotentialPathname, d *OwnershipDelegations, simulate bo
 
 func takeOwnership(paths []PotentialPathname, recursive bool, simulate bool) (retval int) {
 	for _, file := range paths {
-		container, err := findContainingVolume(file)
+		d, err := LookupDelegationsForPath(file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error looking up volume: %v\n", err)
-			retval = OperationError
-			continue
-		}
-		d, err := LoadDelegations(container)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error loading delegations: %v\n", err)
+			fmt.Fprintf(os.Stderr, "error loading delegations in volume of %s: %v\n", file, err)
 			retval = OperationError
 			continue
 		}
@@ -537,15 +539,9 @@ func takeOwnership(paths []PotentialPathname, recursive bool, simulate bool) (re
 
 func addDelegation(username PotentialUsername, paths []PotentialPathname) (retval int) {
 	for _, file := range paths {
-		container, err := findContainingVolume(file)
+		d, err := LookupDelegationsForPath(file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error looking up volume: %v\n", err)
-			retval = OperationError
-			continue
-		}
-		d, err := LoadDelegations(container)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error loading delegations: %v\n", err)
+			fmt.Fprintf(os.Stderr, "error loading delegations in volume of %s: %v\n", file, err)
 			retval = OperationError
 			continue
 		}
@@ -567,15 +563,9 @@ func addDelegation(username PotentialUsername, paths []PotentialPathname) (retva
 
 func deleteDelegation(username PotentialUsername, paths []PotentialPathname) (retval int) {
 	for _, file := range paths {
-		container, err := findContainingVolume(file)
+		d, err := LookupDelegationsForPath(file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error looking up volume: %v\n", err)
-			retval = OperationError
-			continue
-		}
-		d, err := LoadDelegations(container)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error loading delegations: %v\n", err)
+			fmt.Fprintf(os.Stderr, "error loading delegations in volume of %s: %v\n", file, err)
 			retval = OperationError
 			continue
 		}
@@ -603,19 +593,18 @@ func listDelegations(paths []PotentialPathname) (retval int) {
 		}
 		paths = m
 	}
+	volumes := make(map[VolumePath]bool)
 	for _, file := range paths {
-		container, err := findContainingVolume(file)
+		d, err := LookupDelegationsForPath(file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error looking up volume: %v\n", err)
+			fmt.Fprintf(os.Stderr, "error loading delegations in volume of %s: %v\n", file, err)
 			retval = OperationError
 			continue
 		}
-		d, err := LoadDelegations(container)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error loading delegations: %v\n", err)
-			retval = OperationError
+		if _, ok := volumes[d.volume]; ok {
 			continue
 		}
+		volumes[d.volume] = true
 		for _, del := range d.delegations {
 			if !isAdmin() && del.Delegate != Uid(os.Getuid()) {
 				continue
