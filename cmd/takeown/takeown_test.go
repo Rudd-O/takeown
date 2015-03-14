@@ -412,8 +412,9 @@ func (v *TestingVM) Run(action string, opts []string, paths []string, privileges
 	return &RunResult{out, err, exit, v}
 }
 
-// Modify modifies files on disk based on a specification passed to it
-func (v *TestingVM) Modify(description string, requests ...Request) {
+// Modify modifies files on disk based on a specification passed to it.  It
+// returns a pointer to the same VM so you can chain .Check() calls.
+func (v *TestingVM) Modify(description string, requests ...Request) *TestingVM {
 	t := v.t
 	v.lastDescription = description
 	for _, request := range requests {
@@ -425,12 +426,16 @@ func (v *TestingVM) Modify(description string, requests ...Request) {
 		case Directory:
 			err := os.Mkdir(fullpath, os.FileMode(request.mode))
 			if err != nil {
-				t.Fatalf("while %s: cannot create %s %q: %v", description, request.filetype, request.path, err)
+				if !os.IsExist(err){
+					t.Fatalf("while %s: cannot create %s %q: %v", description, request.filetype, request.path, err)
+				}
 			}
 		case File:
 			f, err := os.OpenFile(fullpath, os.O_CREATE|os.O_TRUNC, request.mode)
 			if err != nil {
-				t.Fatalf("while %s: cannot create %s %q: %v", description, request.filetype, request.path, err)
+				if !os.IsExist(err){
+					t.Fatalf("while %s: cannot create %s %q: %v", description, request.filetype, request.path, err)
+				}
 			}
 			f.Close()
 		default:
@@ -451,6 +456,7 @@ func (v *TestingVM) Modify(description string, requests ...Request) {
 			}
 		}
 	}
+	return v
 }
 
 // Check checks particular files to see if their attributes match.
