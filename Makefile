@@ -20,7 +20,10 @@ cmd/takeown/usage.go: README.md build/gendoc.py
 cmd/takeown/takeown: cmd/takeown/usage.go cmd/takeown/*.go
 	cd cmd/takeown && go build && cd ../..
 
+test: cmd/takeown/takeown
+	cd cmd/takeown && go test && cd ../..
+
 gofmt:
 	for f in cmd/takeown/*.go; do gofmt -w $$f; done
 
-.PHONY: gofmt all install uninstall
+.PHONY: gofmt all install uninstall test
