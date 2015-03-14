@@ -66,7 +66,7 @@ type Mountpoint AbsolutePathname
 var uidDoesNotExist = errors.New("UID has no corresponding user name")
 var usernameDoesNotExist = errors.New("user name has no corresponding UID")
 
-// userToUid takes an UNIX UID and looks its name up.  If lookup fails, it
+// uidToUser takes an UNIX UID and looks its name up.  If lookup fails, it
 // returns an error explaining the failure.
 func uidToUser(uid Uid) (Username, error) {
 	var user string
@@ -87,7 +87,7 @@ func uidToUserOrStringifiedUid(uid Uid) UsernameOrStringifiedUid {
 	return UsernameOrStringifiedUid(username)
 }
 
-// uidToUser takes an UNIX user name and looks its UID up.  If lookup fails,
+// userToUid takes an UNIX user name and looks its UID up.  If lookup fails,
 // it returns an error explaining the failure.
 func userToUid(username PotentialUsername) (Uid, error) {
 	var uid C.uid_t
