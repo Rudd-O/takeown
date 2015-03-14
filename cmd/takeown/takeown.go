@@ -44,12 +44,12 @@ func setTrace() bool {
 
 func trace(s string, args ...interface{}) {
 	if tracing {
-		pc := make([]uintptr, 10)  // at least 1 entry needed
+		pc := make([]uintptr, 10) // at least 1 entry needed
 		runtime.Callers(2, pc)
 		f := runtime.FuncForPC(pc[0])
 		file, line := f.FileLine(pc[0])
 		prefix := fmt.Sprintf("%s:%d %s: ", file, line, f.Name())
-		fmt.Fprintf(os.Stderr, prefix + s + "\n", args...)
+		fmt.Fprintf(os.Stderr, prefix+s+"\n", args...)
 	}
 }
 

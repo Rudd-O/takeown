@@ -132,4 +132,3 @@ func mounts() []Mountpoint {
 	C.endmntent(stream)
 	return mounts
 }
-
