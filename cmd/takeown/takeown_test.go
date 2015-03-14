@@ -683,4 +683,93 @@ func TestProgram(t *testing.T) {
 	).Causes(
 		Stat("somefile2", v.unprivilegedUid, 1001, 0644),
 	)
+
+	v.Run("remove delegation on somefile2 as root",
+		[]string{"-d", v.unprivilegedUser}, []string{"somefile2"},
+	).Must(
+		SucceedQuietly()...,
+	)
+
+	v.Run("list delegations as root after removal",
+		[]string{"-l"}, []string{"."},
+	).Must(
+		SucceedQuietly()...
+	)
+
+	v.Run("taking ownership of somefile2 as nobody after removal of delegation",
+		nil, []string{"somefile2"}, Unprivileged,
+	).Must(
+		SucceedQuietly()...
+	).Causes(
+		Stat("somefile2", v.unprivilegedUid, 1001, 0644),
+	)
+
+	v.Modify("resetting some files",
+		D("somedirectory", 0, 0, 0700),
+		F("somefile", 0, 0, 0644),
+		F("somefile2", 0, 0, 0644),
+		F("somedirectory/anotherfile", 0, 0, 0700),
+	).Check(
+		Stat("somedirectory", 0, 0, 0700),
+		Stat("somefile", 0, 0, 0644),
+		Stat("somefile2", 0, 0, 0644),
+		Stat("somedirectory/anotherfile", 0, 0, 0700),
+	)
+
+	v.Run("taking ownership of somefile2 as nobody after reset of permissions",
+		nil, []string{"somefile2"}, Unprivileged,
+	).Must(
+		Print(""),
+		PrintErr("error taking ownership of somefile2: cannot take ownership of somefile2: permission denied"),
+		ExitWith(PermissionDenied),
+	).Causes(
+		Stat("somefile2", 0, 0, 0644),
+	)
+
+	v.Run("grant delegation on the directory",
+		[]string{"-a", v.unprivilegedUser}, []string{"somedirectory"},
+	).Must(
+		SucceedQuietly()...,
+	)
+
+	v.Run("taking ownership recursively of somedirectory as nobody after delegation",
+		[]string{"-r"}, []string{"somedirectory"}, Unprivileged,
+	).Must(
+		SucceedQuietly()...,
+	).Causes(
+		Stat("somedirectory", v.unprivilegedUid),
+		Stat("somedirectory/anotherfile", v.unprivilegedUid),
+	)
+
+	v.Modify("resetting some files",
+		D("somedirectory", 0, 0, 0700),
+		F("somefile", 0, 0, 0644),
+		F("somefile2", 0, 0, 0644),
+		F("somedirectory/anotherfile", 0, 0, 0700),
+	).Check(
+		Stat("somedirectory", 0, 0, 0700),
+		Stat("somefile", 0, 0, 0644),
+		Stat("somefile2", 0, 0, 0644),
+		Stat("somedirectory/anotherfile", 0, 0, 0700),
+	)
+
+	v.Run("grant delegation on the volume",
+		[]string{"-a", v.unprivilegedUser}, []string{"."},
+	).Must(
+		SucceedQuietly()...,
+	)
+
+	v.Run("taking ownership recursively of volume as nobody after full delegation",
+		[]string{"-r"}, []string{"."}, Unprivileged,
+	).Must(
+		SucceedQuietly()...,
+	).Causes(
+		Stat(".", v.unprivilegedUid),
+		Stat("somedirectory", v.unprivilegedUid),
+		Stat("somefile", v.unprivilegedUid),
+		Stat("somefile2", v.unprivilegedUid),
+		Stat("somedirectory/anotherfile", v.unprivilegedUid),
+		Stat(".takeown.delegations", 0),
+	)
+
 }
