@@ -11,6 +11,13 @@ import "strings"
 import "syscall"
 import "testing"
 
+type Privilege int
+
+const (
+	Unprivileged Privilege = iota
+	Privileged
+)
+
 type Criterion string
 
 const (
@@ -71,7 +78,7 @@ type TestingVM struct {
 	lastDescription       string
 	t                     *testing.T
 	unprivilegedUser      string
-	unprivilegedUid       int
+	unprivilegedUid       uint32
 }
 
 func That(criterion Criterion, comparator Comparator, value interface{}) Expectation {
@@ -82,11 +89,17 @@ func That(criterion Criterion, comparator Comparator, value interface{}) Expecta
 	return expectation
 }
 
-func Print(stdout string) Expectation {
+func Print(stdout string, args ...interface{}) Expectation {
+	if len(args) != 0 {
+		stdout = fmt.Sprintf(stdout, args...)
+	}
 	return That(Out, Equals, stdout)
 }
 
-func PrintErr(stderr string) Expectation {
+func PrintErr(stderr string, args ...interface{}) Expectation {
+	if len(args) != 0 {
+		stderr = fmt.Sprintf(stderr, args...)
+	}
 	return That(Err, Equals, stderr)
 }
 
@@ -94,8 +107,12 @@ func ExitWith(retval int) Expectation {
 	return That(Exit, Equals, retval)
 }
 
+func Succeed() Expectation {
+	return ExitWith(0)
+}
+
 func SucceedQuietly() []Expectation {
-	return []Expectation{Print(""), PrintErr(""), ExitWith(0)}
+	return []Expectation{Print(""), PrintErr(""), Succeed()}
 }
 
 func ExitWithUsage() []Expectation {
@@ -212,13 +229,13 @@ func Instantiate(t *testing.T, unprivilegedUser string) (TestingVM, error) {
 		return v, fmt.Errorf("user %q is not known to the system", unprivilegedUser)
 	}
 	v.unprivilegedUser = unprivilegedUser
-	v.unprivilegedUid = int(unprivilegedUid)
+	v.unprivilegedUid = uint32(unprivilegedUid)
 
 	tempdir, err := ioutil.TempDir("", "golang-takeown-test")
 	if err != nil {
 		return v, err
 	}
-	err = os.Chown(tempdir, v.unprivilegedUid, 0)
+	err = os.Chown(tempdir, int(unprivilegedUid), 0)
 	if err != nil {
 		return v, err
 	}
@@ -278,7 +295,10 @@ func Instantiate(t *testing.T, unprivilegedUser string) (TestingVM, error) {
 	if err = os.Lchown(filepath.Join(v.mountpointForProgram, "takeown"), 0, 0); err != nil {
 		return v, err
 	}
-	if err = os.Chmod(filepath.Join(v.mountpointForProgram, "takeown"), 04755); err != nil {
+	if err = os.Chmod(filepath.Join(v.mountpointForProgram, "takeown"), 0755); err != nil {
+		return v, err
+	}
+	if err = exec.Command("chmod", "u+s", "--", filepath.Join(v.mountpointForProgram, "takeown")).Run(); err != nil {
 		return v, err
 	}
 	v.takeownPath = filepath.Join(v.mountpointForProgram, "takeown")
@@ -307,9 +327,13 @@ func (t TestingVM) Destroy() error {
 	return err
 }
 
-func (v TestingVM) ListData() error {
+func (v TestingVM) Datadir() string {
+	return v.mountpointForTestData
+}
+
+func (v TestingVM) List() error {
 	c := exec.Command("ls", "-lRa", v.mountpointForTestData)
-	c.Stdout = os.Stderr
+	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	return c.Run()
 }
@@ -324,7 +348,9 @@ func (v TestingVM) assertPathWithinTestData(p string) (string, error) {
 		return "", fmt.Errorf("problem reasoning whether path %q is outside of test directory %q", fullpath, v.mountpointForTestData)
 	}
 	if !ok {
-		return "", fmt.Errorf("cowardly refusing to manipulate path %q outside of test directory %q", fullpath, v.mountpointForTestData)
+		if v.mountpointForTestData != fullpath {
+			return "", fmt.Errorf("cowardly refusing to manipulate path %q outside of test directory %q", fullpath, v.mountpointForTestData)
+		}
 	}
 	return fullpath, nil
 }
@@ -333,7 +359,7 @@ func (v TestingVM) assertPathWithinTestData(p string) (string, error) {
 // exits, along with its integer return status.  If the command could not
 // be executed, it returns exit status -256.  If the command experienced an
 // unusual exit condition, then the exit status will be -257.
-func (t TestingVM) invoke(opts []string, paths []string, user string) (stdout string, stderr string, exitcode int, malfunction error) {
+func (t TestingVM) invoke(opts []string, paths []string, privilege Privilege) (stdout string, stderr string, exitcode int, malfunction error) {
 	for _, p := range paths {
 		_, malfunction = t.assertPathWithinTestData(p)
 		if malfunction != nil {
@@ -342,10 +368,14 @@ func (t TestingVM) invoke(opts []string, paths []string, user string) (stdout st
 	}
 	args := append(opts, paths...)
 	var c *exec.Cmd
-	if user == "" {
+	if privilege == Privileged {
 		c = exec.Command(t.takeownPath, args...)
 	} else {
-		c = exec.Command("runuser", append([]string{"-u", user, t.takeownPath}, args...)...)
+		c = exec.Command("runuser", append(
+				[]string{"-u", t.unprivilegedUser, "--", t.takeownPath},
+				args...
+			)...
+		)
 	}
 	c.Dir = t.mountpointForTestData
 	var out bytes.Buffer
@@ -365,11 +395,17 @@ func (t TestingVM) invoke(opts []string, paths []string, user string) (stdout st
 	return out.String(), err.String(), exitcode, malfunction
 }
 
-// Run runs a program and saves the result in the returned RunResult.  If user
-// is empty, then the command will be run as the user running the tests.
-func (v *TestingVM) Run(action string, opts []string, paths []string, user string) *RunResult {
+// Run runs a program and saves the result in the returned RunResult.  If
+// privileges is unspecified, it assumes privileged execution.
+func (v *TestingVM) Run(action string, opts []string, paths []string, privileges ...Privilege) *RunResult {
 	v.lastDescription = action
-	out, err, exit, malfunction := v.invoke(opts, paths, user)
+	var privilege Privilege
+	if len(privileges) > 0 {
+		privilege = privileges[0]
+	} else {
+		privilege = Privileged
+	}
+	out, err, exit, malfunction := v.invoke(opts, paths, privilege)
 	if malfunction != nil {
 		v.t.Fatalf("while %s: malfunction invoking takeown: %v", action, malfunction)
 	}
@@ -542,13 +578,21 @@ func TestProgram(t *testing.T) {
 	defer d(v)
 
 	v.Run("invoking program without arguments",
-		nil, nil, "",
+		nil, nil,
 	).Must(
 		Print(""), PrintErr(USAGE), ExitWith(Usage),
 	)
 
 	v.Run("invoking program with tracing",
-		[]string{"-T"}, nil, "",
+		[]string{"-T"}, nil,
+	).Must(
+		Print(""),
+		PrintErr("error: the file /.trace must exist to enable tracing\n"),
+		ExitWith(PermissionDenied),
+	)
+
+	v.Run("invoking program with tracing as unprivileged user",
+		[]string{"-T"}, nil, Unprivileged,
 	).Must(
 		Print(""),
 		PrintErr("error: the file /.trace must exist to enable tracing\n"),
@@ -556,13 +600,13 @@ func TestProgram(t *testing.T) {
 	)
 
 	v.Run("invoking program with add but no parameter",
-		[]string{"-a"}, nil, "",
+		[]string{"-a"}, nil,
 	).Must(
 		ExitWithUsage()...,
 	)
 
 	v.Run("invoking program with delete but no parameter",
-		[]string{"-d"}, nil, "",
+		[]string{"-d"}, nil,
 	).Must(
 		ExitWithUsage()...,
 	)
@@ -575,7 +619,7 @@ func TestProgram(t *testing.T) {
 	)
 
 	v.Run("taking ownership of somefile2 as root",
-		nil, []string{"somefile2"}, "",
+		nil, []string{"somefile2"},
 	).Must(
 		SucceedQuietly()...,
 	).Causes(
@@ -583,7 +627,7 @@ func TestProgram(t *testing.T) {
 	)
 
 	v.Run("taking ownership of somedirectory recursively",
-		[]string{"-r"}, []string{"somedirectory"}, "",
+		[]string{"-r"}, []string{"somedirectory"},
 	).Must(
 		SucceedQuietly()...,
 	).Causes(
@@ -591,7 +635,7 @@ func TestProgram(t *testing.T) {
 	)
 
 	v.Run("taking ownership of somefile2 as nobody",
-		nil, []string{"somefile2"}, "nobody",
+		nil, []string{"somefile2"}, Unprivileged,
 	).Must(
 		Print(""),
 		PrintErr("error taking ownership of somefile2: cannot take ownership of somefile2: permission denied"),
@@ -600,4 +644,37 @@ func TestProgram(t *testing.T) {
 		Stat("somefile2", 0, 1001, 0644),
 	)
 
+	v.Run("grant delegation on somefile2 as nobody",
+		[]string{"-a", v.unprivilegedUser}, []string{"somefile2"}, Unprivileged,
+	).Must(
+		Print(""),
+		PrintErr("error: adding delegations is a privileged operation"),
+		ExitWith(PermissionDenied),
+	)
+
+	v.Run("grant delegation on somefile2 as root",
+		[]string{"-a", v.unprivilegedUser}, []string{"somefile2"},
+	).Must(
+		SucceedQuietly()...,
+	).Causes(
+		Stat(".takeown.delegations", 0, 0, 0600),
+	)
+
+	v.Run("list delegations as root",
+		[]string{"-l"}, []string{"."},
+	).Must(
+		Print("nobody:	%s/somefile2", v.Datadir()),
+		PrintErr(""),
+		Succeed(),
+	).Causes(
+		Stat(".takeown.delegations", 0, 0, 0600),
+	)
+
+	v.Run("taking ownership of somefile2 as nobody after delegation",
+		nil, []string{"somefile2"}, Unprivileged,
+	).Must(
+		SucceedQuietly()...
+	).Causes(
+		Stat("somefile2", v.unprivilegedUid, 1001, 0644),
+	)
 }
