@@ -1,3 +1,3 @@
 usage.go
 *.pyc
-takeown
+cmd/takeown/takeown
