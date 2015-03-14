@@ -621,7 +621,7 @@ func TestProgram(t *testing.T) {
 		D("somedirectory"),
 		F("somefile"),
 		F("somefile2", 1000, 1001, 0644),
-		F("somedirectory/someshit", 1000, 1001, 0700),
+		F("somedirectory/anotherfile", 1000, 1001, 0700),
 	)
 
 	v.Run("taking ownership of somefile2 as root",
@@ -637,7 +637,7 @@ func TestProgram(t *testing.T) {
 	).Must(
 		SucceedQuietly()...,
 	).Causes(
-		Stat("somedirectory/someshit", 0, 1001),
+		Stat("somedirectory/anotherfile", 0, 1001),
 	)
 
 	v.Run("taking ownership of somefile2 as nobody",
