@@ -29,8 +29,7 @@ takeown.
 %autosetup -n %{name}
 
 %build
-python gendoc.py
-go build
+make
 
 %install
 mkdir -p $RPM_BUILD_ROOT%{_bindir}
