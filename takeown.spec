@@ -33,11 +33,11 @@ make
 
 %install
 mkdir -p $RPM_BUILD_ROOT%{_bindir}
-cp -f takeown $RPM_BUILD_ROOT%{_bindir}/
+cp -f cmd/takeown/takeown $RPM_BUILD_ROOT%{_bindir}/
 chmod 755 $RPM_BUILD_ROOT%{_bindir}
 
 mkdir -p $RPM_BUILD_ROOT%{_datadir}/kde4/services/ServiceMenus
-cp -f takeown.desktop $RPM_BUILD_ROOT%{_datadir}/kde4/services/ServiceMenus/
+cp -f kde/takeown.desktop $RPM_BUILD_ROOT%{_datadir}/kde4/services/ServiceMenus/
 chmod 644 $RPM_BUILD_ROOT%{_datadir}/kde4/services/ServiceMenus/*
 
 %files
