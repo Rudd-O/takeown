@@ -4,6 +4,7 @@ import "flag"
 import "fmt"
 import "os"
 import "path/filepath"
+import "runtime"
 import "strings"
 import "syscall"
 
@@ -20,6 +21,7 @@ var listFlag = flag.Bool("l", false, "list user delegations established on paths
 var deleteFlag = flag.Bool("d", false, "remove a delegation for a specific user and path")
 var recurseFlag = flag.Bool("r", false, "take ownership recursively")
 var simulateFlag = flag.Bool("s", false, "simulate taking ownership")
+var traceFlag = flag.Bool("T", false, "show trace of internal execution; requires file `/.trace` to exist")
 
 type SubpathRelativeToVolume string
 type PotentialPathname string
@@ -27,6 +29,29 @@ type AbsolutePathname string
 type AbsoluteMaybeResolvedPathname AbsolutePathname
 type AbsoluteResolvedPathname AbsoluteMaybeResolvedPathname
 type VolumePath AbsoluteResolvedPathname
+
+var tracing bool
+
+// setTrace attempts to set tracing on.  If the file /.trace does not exist,
+// it fails and returns false.  Otherwise it sets tracing on and returns true.
+func setTrace() bool {
+	if _, err := os.Stat("/.trace"); err != nil {
+		return false
+	}
+	tracing = true
+	return true
+}
+
+func trace(s string, args ...interface{}) {
+	if tracing {
+		pc := make([]uintptr, 10)  // at least 1 entry needed
+		runtime.Callers(2, pc)
+		f := runtime.FuncForPC(pc[0])
+		file, line := f.FileLine(pc[0])
+		prefix := fmt.Sprintf("%s:%d %s: ", file, line, f.Name())
+		fmt.Fprintf(os.Stderr, prefix + s + "\n", args...)
+	}
+}
 
 func contains(container, path AbsoluteResolvedPathname) (bool, error) {
 	containerx, err := filepath.Abs(string(container))
@@ -61,6 +86,7 @@ func statWithFileInfo(path PotentialPathname) (*StatedPathname, error) {
 	return &StatedPathname{path, Uid(stated.Uid), Uid(stated.Gid), statedvfs.Fsid}, nil
 }
 
+//FIXME
 func absolutizePath(s PotentialPathname) (AbsolutePathname, error) {
 	p, err := filepath.Abs(string(s))
 	return AbsolutePathname(p), err
@@ -90,6 +116,7 @@ func relativeToVolume(vol VolumePath, p AbsolutePathname) (SubpathRelativeToVolu
 // findContainingVolume will return the volume path that contains the file
 // after resolving all the symlinks intermediating access to the file.
 func findContainingVolume(file AbsolutePathname) (VolumePath, error) {
+	trace("pathname passed: %q", file)
 	res, err := resolveSymlinks(file)
 	if err != nil {
 		return findContainingVolume(AbsolutePathname(filepath.Dir(string(file))))
@@ -149,6 +176,7 @@ func _takeOwnership(file PotentialPathname, d *OwnershipDelegations, simulate bo
 }
 
 func takeOwnership(paths []PotentialPathname, recursive bool, simulate bool) (retval int) {
+	trace("recursive %v, simulate %v, pathnames passed: %q", paths)
 	for _, file := range paths {
 		d, err := LookupDelegationsForPath(file)
 		if err != nil {
@@ -194,6 +222,7 @@ func takeOwnership(paths []PotentialPathname, recursive bool, simulate bool) (re
 }
 
 func addDelegation(username PotentialUsername, paths []PotentialPathname) (retval int) {
+	trace("pathnames passed: %q", paths)
 	for _, file := range paths {
 		d, err := LookupDelegationsForPath(file)
 		if err != nil {
@@ -218,6 +247,7 @@ func addDelegation(username PotentialUsername, paths []PotentialPathname) (retva
 }
 
 func deleteDelegation(username PotentialUsername, paths []PotentialPathname) (retval int) {
+	trace("pathnames passed: %q", paths)
 	for _, file := range paths {
 		d, err := LookupDelegationsForPath(file)
 		if err != nil {
@@ -242,6 +272,7 @@ func deleteDelegation(username PotentialUsername, paths []PotentialPathname) (re
 }
 
 func listDelegations(paths []PotentialPathname) (retval int) {
+	trace("pathnames passed: %q", paths)
 	if len(paths) == 0 {
 		var m []PotentialPathname
 		for _, x := range mounts() {
@@ -278,6 +309,13 @@ func usage() {
 
 func main() {
 	flag.Parse()
+
+	if *traceFlag {
+		if set := setTrace(); !set {
+			fmt.Fprintf(os.Stderr, "error: the file /.trace must exist to enable tracing\n")
+			os.Exit(PermissionDenied)
+		}
+	}
 
 	if *listFlag {
 		if *recurseFlag || *addFlag || *deleteFlag || *simulateFlag {
@@ -325,4 +363,3 @@ func main() {
 	}
 	os.Exit(takeOwnership(stringsToPotentialPathnames(flag.Args()), *recurseFlag, *simulateFlag))
 }
-

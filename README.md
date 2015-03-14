@@ -3,10 +3,10 @@ takeown: delegate file ownership takeover to unprivileged users
 
 Brief usage:
 
-    takeown [-r] [-s] PATH
-    takeown -a USER PATH...
-    takeown -l PATH...
-    takeown -d USER PATH...
+    takeown [-T] [-r] [-s] PATH
+    takeown [-T] -a USER PATH...
+    takeown [-T] -l PATH...
+    takeown [-T] -d USER PATH...
 
 INTRO
 -----
@@ -70,3 +70,10 @@ SIMULATING TAKING OWNERSHIP
 
 The action of taking ownership can be simulated with flag `-s`.  In this mode,
 `takeown` will print what it would do rather than changing the file system.
+
+TRACING
+-------
+
+If a file `/.trace` exists in the root directory, the user is allowed to
+specify the flag `-T`, which causes the program to print tracing information,
+useful to debug problems with the program.
