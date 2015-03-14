@@ -70,4 +70,3 @@ SIMULATING TAKING OWNERSHIP
 
 The action of taking ownership can be simulated with flag `-s`.  In this mode,
 `takeown` will print what it would do rather than changing the file system.
-
