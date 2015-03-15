@@ -764,7 +764,7 @@ func TestIntegration(t *testing.T) {
 	).Must(
 		SucceedQuietly()...,
 	).Causes(
-		Stat(".", v.unprivilegedUid),
+		Stat(".", 0),
 		Stat("somedirectory", v.unprivilegedUid),
 		Stat("somefile", v.unprivilegedUid),
 		Stat("somefile2", v.unprivilegedUid),
