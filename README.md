@@ -26,14 +26,23 @@ Once he has done so, the user `pablo` can run the command:
 
 and `takeown` will change the owner of the file `some-file.txt` to `pablo`.
 
-Delegations on directories are recursive across volumes, and do not propagate
-across mount points.  If a user has been granted a delegation on a directory,
-he will be authorized to take ownership of any files contained in that
-directory, so long as said files are in the same volume.
+Each delegation is recorded in a file `.takeown.delegations` stored in the
+root directory of the volume containing the delegated file / directory.
+
+Delegations recorded on a volume only apply to files and directories
+stored in the volume.  Delegations do not propagate across mount points.
+If a user has been granted a delegation on a directory, he will be
+authorized to take ownership of any files contained in that directory,
+so long as said files are in the same volume.
 
 The flag `-r` in the takeown command induces takeown to grant ownership to the
-invoking user recursively across all paths.  The caveat about not crossing
-mount points applies.
+invoking user recursively across all files and subdirectories of the specified
+paths.  The caveat about not crossing mount points applies -- if another
+volume is mounted within the path specified to a `takeown -r` command, that
+volume will be skipped silently.
+
+For security reasons, attempts by an authorized user to take ownership of
+a volume or ownership of the delegation record file will be silently ignored.
 
 DELEGATING OWNERSHIP TO AN USER
 -------------------------------
