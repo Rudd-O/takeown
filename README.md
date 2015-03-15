@@ -55,6 +55,12 @@ files, run:
 This will delegate the taking of ownership to the user, allowing him to run
 `takeown` to take ownership of any file within the specified paths.
 
+WARNING: if you delegate the taking of ownership of a volume to a user,
+that user may take ownership of the volume itself, and then remove the
+delegation store.  This is not a security issue -- it does not grant the
+user any extra privileges -- but it does prevent future uses of `takeown`
+by unprivileged users in that volume.
+
 REVOKING DELEGATIONS
 --------------------
 

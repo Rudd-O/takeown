@@ -159,7 +159,7 @@ func _takeOwnership(file PotentialPathname, d *OwnershipDelegations, simulate bo
 	}
 
 	// Do not allow taking ownership of the volume itself, or the file containing the delegations.
-	if string(relPath) == TAKEOWN_STORAGE || string(relPath) == "." {
+	if string(relPath) == TAKEOWN_STORAGE {
 		return
 	}
 
