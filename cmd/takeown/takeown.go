@@ -86,7 +86,10 @@ func statWithFileInfo(path PotentialPathname) (*StatedPathname, error) {
 	return &StatedPathname{path, Uid(stated.Uid), Uid(stated.Gid), statedvfs.Fsid}, nil
 }
 
-//FIXME
+// absolutizePath takes a potential pathname and returns an absolute version of
+// it (without symlinks traversed).  The returned value from this function
+// has the property that it is an absolute path rooted at the root directory,
+// with no dot-dots anywhere in the path, slashes at the end, or double slashes.
 func absolutizePath(s PotentialPathname) (AbsolutePathname, error) {
 	p, err := filepath.Abs(string(s))
 	return AbsolutePathname(p), err
