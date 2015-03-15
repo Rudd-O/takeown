@@ -773,3 +773,45 @@ func TestIntegration(t *testing.T) {
 	)
 
 }
+
+func TestRelativeToVolume(t *testing.T) {
+	var testData [][]string = [][]string{
+		[]string{"/abc", "/abc/def", "def"},
+		[]string{"/abc", "/abc", "."},
+	}
+	for _, test := range(testData) {
+		volume := test[0]
+		path := test[1]
+		want := test[2]
+		got, err := relativeToVolume(VolumePath(volume), AbsolutePathname(path))
+		if err != nil {
+			t.Fatalf("testing %q under %q: got unexpected error %v", path, volume, err)
+		}
+		if string(got) != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	}
+}
+
+func TestAbsolutizePath(t *testing.T) {
+	wd, _ := os.Getwd()
+	var testData [][]string = [][]string{
+		[]string{"/abc", "/abc"},
+		[]string{"/abc/def", "/abc/def"},
+		[]string{"/abc/../abc", "/abc"},
+		[]string{"/../..", "/"},
+		[]string{"//abc/", "/abc"},
+		[]string{".", wd},
+	}
+	for _, test := range(testData) {
+		path := test[0]
+		want := test[1]
+		got, err := absolutizePath(PotentialPathname(path))
+		if err != nil {
+			t.Fatalf("testing %q: got unexpected error %v", path, err)
+		}
+		if string(got) != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	}
+}
