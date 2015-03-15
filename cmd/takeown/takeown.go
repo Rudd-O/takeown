@@ -143,8 +143,10 @@ func isAdmin() bool {
 	return false
 }
 
+// Must only ever be called with a path that is relative to the root of the
+// volume in question.
 func _takeOwnership(file PotentialPathname, d *OwnershipDelegations, simulate bool) (retval int) {
-	if strings.HasSuffix(string(file), string(os.PathSeparator)+TAKEOWN_STORAGE) {
+	if string(file) == TAKEOWN_STORAGE {
 		return
 	}
 	stated, err := statWithFileInfo(file)
