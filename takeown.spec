@@ -32,7 +32,7 @@ takeown.
 make
 
 %install
-make install DESTDIR=$RPM_BUILD_ROOT BINDIR=%{_bindir} DATADIR={_datadir}
+make install DESTDIR=$RPM_BUILD_ROOT BINDIR=%{_bindir} DATADIR=%{_datadir}
 
 %files
 %defattr(-,root,root)
