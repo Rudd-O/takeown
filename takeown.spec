@@ -1,4 +1,4 @@
-%define ver 0.0.2
+%define ver 0.0.3
 %define rel 1
 
 Summary:        A tool to delegate file ownership to non-administrators
