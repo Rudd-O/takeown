@@ -579,7 +579,7 @@ func d(v TestingVM) {
 	}
 }
 
-func TestProgram(t *testing.T) {
+func TestIntegration(t *testing.T) {
 	v := i(t)
 	defer d(v)
 
