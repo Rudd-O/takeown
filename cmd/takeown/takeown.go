@@ -146,12 +146,23 @@ func isAdmin() bool {
 	return false
 }
 
-// Must only ever be called with a path that is relative to the root of the
-// volume in question.
 func _takeOwnership(file PotentialPathname, d *OwnershipDelegations, simulate bool) (retval int) {
-	if string(file) == TAKEOWN_STORAGE {
+	absPath, err := absolutizePath(file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error getting absolute path of %s: %v", file, err)
+		return OperationError
+	}
+	relPath, err := relativeToVolume(d.volume, absPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error getting path of %s relative to volume %s: %v", file, d.volume, err)
+		return OperationError
+	}
+
+	// Do not allow taking ownership of the volume itself, or the file containing the delegations.
+	if string(relPath) == TAKEOWN_STORAGE || string(relPath) == "." {
 		return
 	}
+
 	stated, err := statWithFileInfo(file)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error taking ownership of %s: %v\n", file, err)
