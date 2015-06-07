@@ -1,4 +1,4 @@
-%define ver 0.0.6
+%define ver 0.0.7
 %define rel 1%{?dist}
 
 Summary:        A tool to delegate file ownership to non-administrators
@@ -18,7 +18,7 @@ Requires:       kde-filesystem, zenity, python, %{name}
 
 %package gnome
 Summary:        Context menus for the Nautilus file manager to run takeown
-Requires:       nautilus-python, %{name}
+Requires:       nautilus-python, pygobject3, %{name}
 
 %description
 takeown is a simple command-line tool that allows non-administrators to take
@@ -55,6 +55,9 @@ make install DESTDIR=$RPM_BUILD_ROOT BINDIR=%{_bindir} DATADIR=%{_datadir}
 %{_datadir}/nautilus-python/extensions/%{name}.py*
 
 %changelog
+* Sun Jun 06 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.7-1
+- Added dependency on pygobject3 for proper operation
+
 * Sun Jun 06 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.5-1
 - Added support for different distro releases
 
