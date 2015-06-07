@@ -1,4 +1,4 @@
-%define ver 0.0.5
+%define ver 0.0.6
 %define rel 1%{?dist}
 
 Summary:        A tool to delegate file ownership to non-administrators
@@ -58,10 +58,8 @@ make install DESTDIR=$RPM_BUILD_ROOT BINDIR=%{_bindir} DATADIR=%{_datadir}
 * Sun Jun 06 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.5-1
 - Added support for different distro releases
 
-%changelog
 * Sun Jun 06 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.4-1
 - Added support for Nautilus
 
-%changelog
 * Sun Mar 08 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.1-1
 - First initial release
