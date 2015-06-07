@@ -1,4 +1,4 @@
-%define ver 0.0.3
+%define ver 0.0.4
 %define rel 1
 
 Summary:        A tool to delegate file ownership to non-administrators
@@ -16,6 +16,10 @@ BuildRequires:  golang, python
 Summary:        Context menus for KDE file managers to run takeown
 Requires:       kde-filesystem, zenity, python, %{name}
 
+%package gnome
+Summary:        Context menus for the Nautilus file manager to run takeown
+Requires:       nautilus-python, %{name}
+
 %description
 takeown is a simple command-line tool that allows non-administrators to take
 ownership of files they do not own, so long as the administrator has set
@@ -24,6 +28,10 @@ appropriate policy to allow that.
 %description kde
 This package provides a context menu for KDE file managers to invoke
 takeown.
+
+%description gnome
+This package provides a context menu for the GNOME file manager Nautilus
+to invoke takeown.
 
 %prep
 %autosetup -n %{name}
@@ -41,6 +49,14 @@ make install DESTDIR=$RPM_BUILD_ROOT BINDIR=%{_bindir} DATADIR=%{_datadir}
 %files kde
 %defattr(-,root,root)
 %{_datadir}/kde4/services/ServiceMenus/%{name}.desktop
+
+%files gnome
+%defattr(-,root,root)
+%{_datadir}/nautilus-python/extensions/%{name}.py*
+
+%changelog
+* Sun Jun 06 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.4-1
+- Added support for Nautilus
 
 %changelog
 * Sun Mar 08 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.1-1
