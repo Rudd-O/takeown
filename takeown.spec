@@ -1,5 +1,5 @@
-%define ver 0.0.4
-%define rel 1
+%define ver 0.0.5
+%define rel 1%{?dist}
 
 Summary:        A tool to delegate file ownership to non-administrators
 Name:           takeown
@@ -53,6 +53,10 @@ make install DESTDIR=$RPM_BUILD_ROOT BINDIR=%{_bindir} DATADIR=%{_datadir}
 %files gnome
 %defattr(-,root,root)
 %{_datadir}/nautilus-python/extensions/%{name}.py*
+
+%changelog
+* Sun Jun 06 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.5-1
+- Added support for different distro releases
 
 %changelog
 * Sun Jun 06 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.4-1
