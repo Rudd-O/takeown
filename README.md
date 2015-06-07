@@ -92,3 +92,8 @@ TRACING
 If a file `/.trace` exists in the root directory, the user is allowed to
 specify the flag `-T`, which causes the program to print tracing information,
 useful to debug problems with the program.
+
+LICENSE
+-------
+
+This program is published under the GNU GPL version 3 or later.
