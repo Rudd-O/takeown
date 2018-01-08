@@ -1,5 +1,6 @@
 all: cmd/takeown/takeown gnome/takeown.pyc gnome/takeown.pyo
 
+PROGNAME=takeown
 BINDIR=/usr/local/bin
 DATADIR=/usr/local/share
 DESTDIR=
@@ -24,7 +25,7 @@ uninstall:
 	rm -f $(DESTDIR)$(DATADIR)/nautilus-python/extensions/takeown.py*
 
 clean:
-	rm -f gnome/takeown.pyc gnome/takeown.pyo cmd/takeown/usage.go
+	rm -f gnome/takeown.pyc gnome/takeown.pyo cmd/takeown/usage.go *.rpm *.tar.gz
 
 cmd/takeown/usage.go: README.md build/gendoc.py
 	python build/gendoc.py
@@ -44,4 +45,13 @@ test: cmd/takeown/takeown
 gofmt:
 	for f in cmd/takeown/*.go; do gofmt -w $$f; done
 
-.PHONY: gofmt all install uninstall test install-program install-kde install-gnome
+dist: clean
+	excludefrom= ; test -f .gitignore && excludefrom=--exclude-from=.gitignore ; DIR=$(PROGNAME)-`awk '/^%define ver/ {print $$3}' $(PROGNAME).spec` && FILENAME=$$DIR.tar.gz && tar cvzf "$$FILENAME" --exclude="$$FILENAME" --exclude=.git --exclude=.gitignore $$excludefrom --transform="s|^|$$DIR/|S" --show-transformed *
+
+rpm: dist
+	T=`mktemp -d` && rpmbuild --define "_topdir $$T" -ta $(PROGNAME)-`awk '/^%define ver/ {print $$3}' $(PROGNAME).spec`.tar.gz || { rm -rf "$$T"; exit 1; } && mv "$$T"/RPMS/*/* "$$T"/SRPMS/* . || { rm -rf "$$T"; exit 1; } && rm -rf "$$T"
+
+srpm: dist
+	T=`mktemp -d` && rpmbuild --define "_topdir $$T" -ts $(PROGNAME)-`awk '/^%define ver/ {print $$3}' $(PROGNAME).spec`.tar.gz || { rm -rf "$$T"; exit 1; } && mv "$$T"/SRPMS/* . || { rm -rf "$$T"; exit 1; } && rm -rf "$$T"
+
+.PHONY: gofmt all install uninstall test install-program install-kde install-gnome dist rpm srpm

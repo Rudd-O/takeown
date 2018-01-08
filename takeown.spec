@@ -1,4 +1,4 @@
-%define ver 0.0.7
+%define ver 0.0.8
 %define rel 1%{?dist}
 
 Summary:        A tool to delegate file ownership to non-administrators
@@ -8,7 +8,7 @@ Version:        %ver
 Release:        %rel
 License:        GPL
 Group:          System administration tools
-Source:         %{name}-%ver.tar.xz
+Source:         %{name}-%ver.tar.gz
 URL:            https://github.com/Rudd-O/takeown
 BuildRequires:  golang, python
 
@@ -34,7 +34,7 @@ This package provides a context menu for the GNOME file manager Nautilus
 to invoke takeown.
 
 %prep
-%autosetup -n %{name}
+%autosetup
 
 %build
 make
