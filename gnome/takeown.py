@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 import os
 import subprocess
@@ -104,5 +104,5 @@ class TakeownItemExtension(GObject.GObject, Nautilus.MenuProvider):
                     show_simulation_results(text.strip())
                 else:
                     error_running_takeown(text.strip())
-        except OSError, e:
+        except OSError as e:
             error_running_takeown(e.strerror)
