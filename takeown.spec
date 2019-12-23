@@ -1,4 +1,4 @@
-%define ver 0.0.8
+%define ver 0.0.9
 %define rel 1%{?dist}
 
 Summary:        A tool to delegate file ownership to non-administrators
@@ -10,7 +10,7 @@ License:        GPL
 Group:          System administration tools
 Source:         %{name}-%ver.tar.gz
 URL:            https://github.com/Rudd-O/takeown
-BuildRequires:  golang, python
+BuildRequires:  golang, python-unversioned-command
 
 %package kde
 Summary:        Context menus for KDE file managers to run takeown
