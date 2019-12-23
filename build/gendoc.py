@@ -8,4 +8,4 @@ text = """package main
 
 const USAGE = %s
 """%text
-open("cmd/takeown/usage.go", "wb").write(text)
+open("cmd/takeown/usage.go", "w").write(text)
