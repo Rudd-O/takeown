@@ -6,18 +6,18 @@ Actions=takeOwnership;takeOwnershipRecursively;takeOwnershipRecursivelySimulate;
 
 [Desktop Action takeOwnership]
 TryExec=takeown
-Exec=python -c 'import sys, subprocess; text = subprocess.Popen(["takeown"] + sys.argv[1:], stdin=None, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).communicate()[0]; text = text.strip() and subprocess.call(["zenity", "--info", "--no-markup", "--text=%%s" %% text])' %F
+Exec=python3 -c 'import sys, subprocess; text = subprocess.Popen(["takeown"] + sys.argv[1:], stdin=None, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).communicate()[0]; text = text.strip() and subprocess.call(["zenity", "--info", "--no-markup", "--text=%%s" %% text])' %F
 Icon=document-decrypt
 Name=Take ownership
 
 [Desktop Action takeOwnershipRecursively]
 TryExec=takeown
-Exec=python -c 'import sys, subprocess; text = subprocess.Popen(["takeown", "-r"] + sys.argv[1:], stdin=None, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).communicate()[0]; text.strip() and subprocess.call(["zenity", "--info", "--no-markup", "--text=%%s" %% text])' %F
+Exec=python3 -c 'import sys, subprocess; text = subprocess.Popen(["takeown", "-r"] + sys.argv[1:], stdin=None, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).communicate()[0]; text.strip() and subprocess.call(["zenity", "--info", "--no-markup", "--text=%%s" %% text])' %F
 Icon=document-decrypt
 Name=Take ownership recursively
 
 [Desktop Action takeOwnershipRecursivelySimulate]
 TryExec=takeown
-Exec=python -c 'import sys, subprocess; text = subprocess.Popen(["takeown", "-r", "-s"] + sys.argv[1:], stdin=None, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).communicate()[0]; text.strip() and subprocess.call(["zenity", "--info", "--no-markup", "--text=%%s" %% text])' %F
+Exec=python3 -c 'import sys, subprocess; text = subprocess.Popen(["takeown", "-r", "-s"] + sys.argv[1:], stdin=None, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).communicate()[0]; text.strip() and subprocess.call(["zenity", "--info", "--no-markup", "--text=%%s" %% text])' %F
 Icon=document-decrypt
 Name=Simulate recursive taking of ownership

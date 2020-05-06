@@ -21,19 +21,11 @@ def zenity_dialog(typ, title, message):
 
 def show_simulation_results(results):
     title = "Takeown simulation results"
-    try:
-        message = str(results)
-    except UnicodeEncodeError:
-        message = unicode(results).encode("utf-8")
     zenity_dialog(Gtk.MessageType.INFO, title, message)
 
 
 def error_running_takeown(error):
     title = "Error running takeown"
-    try:
-        message = str(error)
-    except UnicodeEncodeError:
-        message = unicode(error).encode("utf-8")
     zenity_dialog(Gtk.MessageType.ERROR, title, message)
 
 
@@ -97,7 +89,8 @@ class TakeownItemExtension(GObject.GObject, Nautilus.MenuProvider):
                 cmd + paths,
                 stdin=None,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
             ).communicate()[0]
             if text.strip():
                 if "Simulate" in menu.get_property('name'):
