@@ -13,7 +13,9 @@ install-program: cmd/takeown/takeown
 
 install-kde:
 	mkdir -p $(DESTDIR)$(DATADIR)/kde4/services/ServiceMenus
+	mkdir -p $(DESTDIR)$(DATADIR)/kservices5/ServiceMenus
 	install -m 0644 kde/takeown.desktop $(DESTDIR)$(DATADIR)/kde4/services/ServiceMenus
+	install -m 0644 kde/takeown.desktop $(DESTDIR)$(DATADIR)/kservices5/ServiceMenus
 
 install-gnome: gnome/takeown.pyc gnome/takeown.pyo
 	mkdir -p $(DESTDIR)$(DATADIR)/nautilus-python/extensions

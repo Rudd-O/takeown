@@ -1,4 +1,4 @@
-%define ver 0.0.11
+%define ver 0.0.12
 %define rel 1%{?dist}
 
 Summary:        A tool to delegate file ownership to non-administrators
@@ -14,7 +14,7 @@ BuildRequires:  golang, python3
 
 %package kde
 Summary:        Context menus for KDE file managers to run takeown
-Requires:       kde-filesystem, zenity, python3, %{name}
+Requires:       kde-filesystem, kf5-filesystem, zenity, python3, %{name}
 
 %package gnome
 Summary:        Context menus for the Nautilus file manager to run takeown
@@ -49,6 +49,7 @@ make install DESTDIR=$RPM_BUILD_ROOT BINDIR=%{_bindir} DATADIR=%{_datadir}
 %files kde
 %defattr(-,root,root)
 %{_datadir}/kde4/services/ServiceMenus/%{name}.desktop
+%{_datadir}/kservices5/ServiceMenus/%{name}.desktop
 
 %files gnome
 %defattr(-,root,root)
