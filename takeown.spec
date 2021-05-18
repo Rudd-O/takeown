@@ -58,15 +58,3 @@ make install DESTDIR=$RPM_BUILD_ROOT BINDIR=%{_bindir} DATADIR=%{_datadir}
 %changelog
 * Tue May 18 2021 Manuel Amador <rudd-o@rudd-o.com> 0.0.13-1
 - Fix changelog
-
-* Sun Jun 6 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.7-1
-- Added dependency on pygobject3 for proper operation
-
-* Sun Jun 6 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.5-1
-- Added support for different distro releases
-
-* Sun Jun 6 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.4-1
-- Added support for Nautilus
-
-* Sun Mar 8 2015 Manuel Amador <rudd-o@rudd-o.com> 0.0.1-1
-- First initial release
