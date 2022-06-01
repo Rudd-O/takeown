@@ -1,3 +1,5 @@
+*.rpm
+*.tar.gz
 usage.go
 *.pyc
 *.pyo
