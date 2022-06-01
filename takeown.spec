@@ -2,7 +2,7 @@
 %define rel 1%{?dist}
 
 # Work around issue in F35.
-%debug_package %{nil}
+%define debug_package %{nil}
 
 Summary:        A tool to delegate file ownership to non-administrators
 Name:           takeown
