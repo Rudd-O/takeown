@@ -52,23 +52,23 @@ char * uid_to_name(uid_t uid)
 }
 */
 import "C"
-import "errors"
-import "fmt"
-import "strconv"
-import "unsafe"
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"unsafe"
+)
 
 type PotentialUsername string
-type Uid uint32
 type Username string
 type UsernameOrStringifiedUid string
-type Mountpoint AbsolutePathname
 
 var uidDoesNotExist = errors.New("UID has no corresponding user name")
 var usernameDoesNotExist = errors.New("user name has no corresponding UID")
 
 // uidToUser takes an UNIX UID and looks its name up.  If lookup fails, it
 // returns an error explaining the failure.
-func uidToUser(uid Uid) (Username, error) {
+func uidToUser(uid UID) (Username, error) {
 	var user string
 	username := C.uid_to_name(C.uid_t(uid))
 	if username == nil {
@@ -79,7 +79,7 @@ func uidToUser(uid Uid) (Username, error) {
 	return Username(user), nil
 }
 
-func uidToUserOrStringifiedUid(uid Uid) UsernameOrStringifiedUid {
+func uidToUserOrStringifiedUid(uid UID) UsernameOrStringifiedUid {
 	username, err := uidToUser(uid)
 	if err != nil {
 		return UsernameOrStringifiedUid(fmt.Sprintf("%d", uid))
@@ -89,7 +89,7 @@ func uidToUserOrStringifiedUid(uid Uid) UsernameOrStringifiedUid {
 
 // userToUid takes an UNIX user name and looks its UID up.  If lookup fails,
 // it returns an error explaining the failure.
-func userToUid(username PotentialUsername) (Uid, error) {
+func userToUid(username PotentialUsername) (UID, error) {
 	var uid C.uid_t
 	ucs := C.CString(string(username))
 	defer C.free(unsafe.Pointer(ucs))
@@ -97,10 +97,10 @@ func userToUid(username PotentialUsername) (Uid, error) {
 	if worked != 1 {
 		return 0, usernameDoesNotExist
 	}
-	return Uid(uid), nil
+	return UID(uid), nil
 }
 
-func userToUidOrStringUid(username PotentialUsername) (Uid, error) {
+func userToUidOrStringUid(username PotentialUsername) (UID, error) {
 	uid, err := userToUid(username)
 	if err != nil {
 		uuid, err := strconv.Atoi(string(username))
@@ -110,25 +110,7 @@ func userToUidOrStringUid(username PotentialUsername) (Uid, error) {
 		if uuid < 0 {
 			return 0, usernameDoesNotExist
 		}
-		return Uid(uuid), nil
+		return UID(uuid), nil
 	}
-	return Uid(uid), nil
-}
-
-// mounts returns a list of mount points
-func mounts() []Mountpoint {
-	var mounts []Mountpoint
-	mtab := C.CString("/etc/mtab")
-	r := C.CString("r")
-	stream := C.setmntent(mtab, r)
-	for {
-		mntent := C.getmntent(stream) //, &mntbuf, &buf, buflen)
-		if mntent == nil {
-			break
-		}
-		mntpnt := C.GoString(mntent.mnt_dir)
-		mounts = append(mounts, Mountpoint(mntpnt))
-	}
-	C.endmntent(stream)
-	return mounts
+	return UID(uid), nil
 }

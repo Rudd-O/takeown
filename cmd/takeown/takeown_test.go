@@ -1,15 +1,16 @@
 package main
 
-import "bytes"
-import "fmt"
-import "io"
-import "io/ioutil"
-import "path/filepath"
-import "os"
-import "os/exec"
-import "strings"
-import "syscall"
-import "testing"
+import (
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"testing"
+)
 
 type Privilege int
 
@@ -29,7 +30,8 @@ const (
 type Comparator string
 
 const (
-	Equals Comparator = "equals"
+	Equals   Comparator = "equals"
+	EndsWith Comparator = "endswith"
 )
 
 type FileType string
@@ -101,6 +103,13 @@ func PrintErr(stderr string, args ...interface{}) Expectation {
 		stderr = fmt.Sprintf(stderr, args...)
 	}
 	return That(Err, Equals, stderr)
+}
+
+func FinishErrWith(stderr string, args ...interface{}) Expectation {
+	if len(args) != 0 {
+		stderr = fmt.Sprintf(stderr, args...)
+	}
+	return That(Err, EndsWith, stderr)
 }
 
 func ExitWith(retval int) Expectation {
@@ -189,7 +198,7 @@ func runAndPrintErrors(command string, args ...string) error {
 	return e
 }
 
-func copy(src, dst string) error {
+func ccopy(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -200,7 +209,14 @@ func copy(src, dst string) error {
 		return err
 	}
 	defer out.Close()
-	_, err = io.Copy(out, in)
+	b, err := ioutil.ReadAll(in)
+	if err != nil {
+		return err
+	}
+	_, err = out.Write(b)
+	if err != nil {
+		return err
+	}
 	cerr := out.Close()
 	if err != nil {
 		return err
@@ -289,7 +305,7 @@ func Instantiate(t *testing.T, unprivilegedUser string) (TestingVM, error) {
 	v.blockdevForTestData = g.Name()
 	v.mountpointForTestData = filepath.Join(tempdir, "takeown-data.dir")
 
-	if err = copy("takeown", filepath.Join(v.mountpointForProgram, "takeown")); err != nil {
+	if err = ccopy("takeown", filepath.Join(v.mountpointForProgram, "takeown")); err != nil {
 		return v, err
 	}
 	if err = os.Lchown(filepath.Join(v.mountpointForProgram, "takeown"), 0, 0); err != nil {
@@ -338,12 +354,24 @@ func (v TestingVM) List() error {
 	return c.Run()
 }
 
+func contains(container, path string) (bool, error) {
+	containerx, err := filepath.Abs(string(container))
+	if err != nil {
+		return false, err
+	}
+	pathx, err := filepath.Abs(string(path))
+	if err != nil {
+		return false, err
+	}
+	return strings.HasPrefix(pathx, containerx+string(os.PathSeparator)), nil
+}
+
 // assertPathWithinTestData evaluates the passed path and returns an error
 // if the path is not within the test data directory.  Otherwise, it will
 // return a string with the full absolutized path.
 func (v TestingVM) assertPathWithinTestData(p string) (string, error) {
 	fullpath := filepath.Join(v.mountpointForTestData, p)
-	ok, err := contains(AbsoluteResolvedPathname(v.mountpointForTestData), AbsoluteResolvedPathname(fullpath))
+	ok, err := contains(v.mountpointForTestData, fullpath)
 	if err != nil {
 		return "", fmt.Errorf("problem reasoning whether path %q is outside of test directory %q", fullpath, v.mountpointForTestData)
 	}
@@ -372,9 +400,9 @@ func (t TestingVM) invoke(opts []string, paths []string, privilege Privilege) (s
 		c = exec.Command(t.takeownPath, args...)
 	} else {
 		c = exec.Command("runuser", append(
-				[]string{"-u", t.unprivilegedUser, "--", t.takeownPath},
-				args...
-			)...
+			[]string{"-u", t.unprivilegedUser, "--", t.takeownPath},
+			args...,
+		)...,
 		)
 	}
 	c.Dir = t.mountpointForTestData
@@ -426,14 +454,14 @@ func (v *TestingVM) Modify(description string, requests ...Request) *TestingVM {
 		case Directory:
 			err := os.Mkdir(fullpath, os.FileMode(request.mode))
 			if err != nil {
-				if !os.IsExist(err){
+				if !os.IsExist(err) {
 					t.Fatalf("while %s: cannot create %s %q: %v", description, request.filetype, request.path, err)
 				}
 			}
 		case File:
 			f, err := os.OpenFile(fullpath, os.O_CREATE|os.O_TRUNC, request.mode)
 			if err != nil {
-				if !os.IsExist(err){
+				if !os.IsExist(err) {
 					t.Fatalf("while %s: cannot create %s %q: %v", description, request.filetype, request.path, err)
 				}
 			}
@@ -518,6 +546,10 @@ func (r *RunResult) Must(expectations ...Expectation) *RunResult {
 				if got != expected && strings.TrimRight(got, "\n") != expected {
 					t.Errorf("while %s: got %s %q, expected %q", action, e.criterion, got, expected)
 				}
+			case EndsWith:
+				if !strings.HasSuffix(strings.TrimRight(got, "\n"), strings.TrimRight(expected, "\n")) {
+					t.Errorf("while %s: got %s %q, expected to end with %q", action, e.criterion, got, expected)
+				}
 			default:
 				t.Fatalf("while %s: invalid comparator %q in expectation %v", action, e.comparator, e)
 			}
@@ -533,7 +565,7 @@ func (r *RunResult) Must(expectations ...Expectation) *RunResult {
 			switch e.comparator {
 			case Equals:
 				if got != expected {
-					t.Errorf("while %s: got %s %d, expected %d", action, e.criterion, got, expected)
+					t.Errorf("while %s: got %s %d, expected %d –– program stderr: %s", action, e.criterion, got, expected, err)
 				}
 			default:
 				t.Fatalf("while %s: invalid comparator %q in expectation %v", action, e.comparator, e)
@@ -575,10 +607,9 @@ func i(t *testing.T) TestingVM {
 func d(v TestingVM) {
 	destroyerr := v.Destroy()
 	if destroyerr != nil {
-		v.t.Fatalf("%s could not be destroyed", v, destroyerr)
+		v.t.Fatalf("%s could not be destroyed: %v", v, destroyerr)
 	}
 }
-
 func TestIntegration(t *testing.T) {
 	v := i(t)
 	defer d(v)
@@ -644,7 +675,7 @@ func TestIntegration(t *testing.T) {
 		nil, []string{"somefile2"}, Unprivileged,
 	).Must(
 		Print(""),
-		PrintErr("error taking ownership of somefile2: cannot take ownership of somefile2: permission denied"),
+		PrintErr("error taking ownership of somefile2: permission denied"),
 		ExitWith(PermissionDenied),
 	).Causes(
 		Stat("somefile2", 0, 1001, 0644),
@@ -654,38 +685,60 @@ func TestIntegration(t *testing.T) {
 		[]string{"-a", v.unprivilegedUser}, []string{"somefile2"}, Unprivileged,
 	).Must(
 		Print(""),
-		PrintErr("error: adding delegations is a privileged operation"),
+		PrintErr("error adding delegation for user nobody on path somefile2: stat somefile2: not a directory"),
+		ExitWith(OperationError),
+	)
+
+	v.Run("grant delegation on somedirectory as nobody",
+		[]string{"-a", v.unprivilegedUser}, []string{"somedirectory"}, Unprivileged,
+	).Must(
+		Print(""),
+		FinishErrWith("operation not permitted"),
 		ExitWith(PermissionDenied),
 	)
 
-	v.Run("grant delegation on somefile2 as root",
-		[]string{"-a", v.unprivilegedUser}, []string{"somefile2"},
+	v.Run("grant delegation on somedirectory as root",
+		[]string{"-a", v.unprivilegedUser}, []string{"somedirectory"},
 	).Must(
 		SucceedQuietly()...,
-	).Causes(
-		Stat(".takeown.delegations", 0, 0, 0600),
 	)
 
 	v.Run("list delegations as root",
-		[]string{"-l"}, []string{"."},
+		[]string{"-l"}, []string{"somedirectory"},
 	).Must(
-		Print("nobody:	%s/somefile2", v.Datadir()),
+		Print("somedirectory:\n\tnobody: via %s/somedirectory", v.Datadir()),
 		PrintErr(""),
 		Succeed(),
-	).Causes(
-		Stat(".takeown.delegations", 0, 0, 0600),
+	)
+
+	v.Run("grant delegation on test dir as root",
+		[]string{"-a", v.unprivilegedUser}, []string{"."},
+	).Must(
+		SucceedQuietly()...,
 	)
 
 	v.Run("taking ownership of somefile2 as nobody after delegation",
 		nil, []string{"somefile2"}, Unprivileged,
 	).Must(
-		SucceedQuietly()...
+		SucceedQuietly()...,
 	).Causes(
 		Stat("somefile2", v.unprivilegedUid, 1001, 0644),
 	)
 
-	v.Run("remove delegation on somefile2 as root",
-		[]string{"-d", v.unprivilegedUser}, []string{"somefile2"},
+	v.Run("remove delegation on somedirectory as root",
+		[]string{"-d", v.unprivilegedUser}, []string{"somedirectory"},
+	).Must(
+		SucceedQuietly()...,
+	)
+
+	v.Run("remove delegation on test data dir as root",
+		[]string{"-d", v.unprivilegedUser}, []string{"."},
+	).Must(
+		SucceedQuietly()...,
+	)
+
+	v.Run("list delegations of somedirectory as root after removal",
+		[]string{"-l"}, []string{"somedirectory"},
 	).Must(
 		SucceedQuietly()...,
 	)
@@ -693,15 +746,19 @@ func TestIntegration(t *testing.T) {
 	v.Run("list delegations as root after removal",
 		[]string{"-l"}, []string{"."},
 	).Must(
-		SucceedQuietly()...
+		SucceedQuietly()...,
+	)
+
+	v.Modify("chowning somefile2 to root",
+		F("somefile2", 0, 0, 0644),
 	)
 
 	v.Run("taking ownership of somefile2 as nobody after removal of delegation",
 		nil, []string{"somefile2"}, Unprivileged,
 	).Must(
-		SucceedQuietly()...
-	).Causes(
-		Stat("somefile2", v.unprivilegedUid, 1001, 0644),
+		Print(""),
+		PrintErr("error taking ownership of somefile2: permission denied"),
+		ExitWith(PermissionDenied),
 	)
 
 	v.Modify("resetting some files",
@@ -720,7 +777,7 @@ func TestIntegration(t *testing.T) {
 		nil, []string{"somefile2"}, Unprivileged,
 	).Must(
 		Print(""),
-		PrintErr("error taking ownership of somefile2: cannot take ownership of somefile2: permission denied"),
+		PrintErr("error taking ownership of somefile2: permission denied"),
 		ExitWith(PermissionDenied),
 	).Causes(
 		Stat("somefile2", 0, 0, 0644),
@@ -769,49 +826,54 @@ func TestIntegration(t *testing.T) {
 		Stat("somefile", v.unprivilegedUid),
 		Stat("somefile2", v.unprivilegedUid),
 		Stat("somedirectory/anotherfile", v.unprivilegedUid),
-		Stat(".takeown.delegations", 0),
 	)
 
-}
+	v.Run("remove delegation on test data dir as root",
+		[]string{"-d", v.unprivilegedUser}, []string{"."},
+	).Must(
+		SucceedQuietly()...,
+	)
 
-func TestRelativeToVolume(t *testing.T) {
-	var testData [][]string = [][]string{
-		[]string{"/abc", "/abc/def", "def"},
-		[]string{"/abc", "/abc", "."},
-	}
-	for _, test := range(testData) {
-		volume := test[0]
-		path := test[1]
-		want := test[2]
-		got, err := relativeToVolume(VolumePath(volume), AbsolutePathname(path))
-		if err != nil {
-			t.Fatalf("testing %q under %q: got unexpected error %v", path, volume, err)
-		}
-		if string(got) != want {
-			t.Errorf("got %q, want %q", got, want)
-		}
-	}
-}
+	v.Modify("creating recursive dir",
+		D("a", 0, 0, 0700),
+		D("a/b", 0, 0, 0700),
+		D("a/b/c", 0, 0, 0700),
+	)
 
-func TestAbsolutizePath(t *testing.T) {
-	wd, _ := os.Getwd()
-	var testData [][]string = [][]string{
-		[]string{"/abc", "/abc"},
-		[]string{"/abc/def", "/abc/def"},
-		[]string{"/abc/../abc", "/abc"},
-		[]string{"/../..", "/"},
-		[]string{"//abc/", "/abc"},
-		[]string{".", wd},
-	}
-	for _, test := range(testData) {
-		path := test[0]
-		want := test[1]
-		got, err := absolutizePath(PotentialPathname(path))
-		if err != nil {
-			t.Fatalf("testing %q: got unexpected error %v", path, err)
-		}
-		if string(got) != want {
-			t.Errorf("got %q, want %q", got, want)
-		}
-	}
+	v.Run("taking ownership recursively of a as nobody without permission",
+		[]string{"-r"}, []string{"a"}, Unprivileged,
+	).Must(
+		Print(""),
+		PrintErr("error taking ownership of a: permission denied"),
+		ExitWith(PermissionDenied),
+	)
+
+	v.Modify("chowning toplevel recursive dir",
+		D("a", 0, 0, 0755),
+		D("a/b", 0, 0, 0700),
+		D("a/b/c", 0, 0, 0755),
+	)
+	v.Run("taking ownership recursively of a as nobody after chown of a",
+		[]string{"-r"}, []string{"a"}, Unprivileged,
+	).Must(
+		Print(""),
+		PrintErr("error taking ownership of a: permission denied\nerror taking ownership of a/b: permission denied"),
+		ExitWith(PermissionDenied),
+	)
+
+	v.Run("grant delegation on a",
+		[]string{"-a", v.unprivilegedUser}, []string{"a"},
+	).Must(
+		SucceedQuietly()...,
+	)
+
+	v.Run("taking ownership recursively of a as nobody after chown of a and grant of a",
+		[]string{"-r", "-v"}, []string{"a"}, Unprivileged,
+	).Must(
+		Print("took ownership of a\ntook ownership of a/b\ntook ownership of a/b/c"),
+		PrintErr(""),
+		Succeed(),
+	)
+
+	// FIXME add test cases for not showing putatively hidden directories if no permission is there and user not authorized
 }

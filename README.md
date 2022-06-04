@@ -3,7 +3,7 @@ takeown: delegate file ownership takeover to unprivileged users
 
 Brief usage:
 
-    takeown [-T] [-r] [-s] PATH
+    takeown [-T] [-r] [-s] [-v] PATH
     takeown [-T] -a USER PATH...
     takeown [-T] -l PATH...
     takeown [-T] -d USER PATH...
@@ -26,14 +26,11 @@ Once he has done so, the user `pablo` can run the command:
 
 and `takeown` will change the owner of the file `some-file.txt` to `pablo`.
 
-Each delegation is recorded in a file `.takeown.delegations` stored in the
-root directory of the volume containing the delegated file / directory.
+Each delegation is recorded in the respective directory's extended attribute
+`trusted.takeown.grants`.
 
-Delegations recorded on a volume only apply to files and directories
-stored in the volume.  Delegations do not propagate across mount points.
 If a user has been granted a delegation on a directory, he will be
-authorized to take ownership of any files contained in that directory,
-so long as said files are in the same volume.
+authorized to take ownership of any files contained in that directory.
 
 The flag `-r` in the takeown command induces takeown to grant ownership to the
 invoking user recursively across all files and subdirectories of the specified
@@ -50,16 +47,10 @@ DELEGATING OWNERSHIP TO AN USER
 To allow a user to take ownership of files under a directory, or specific
 files, run:
 
-    takeown username /path/to/directory/or/file...
+    takeown -a username /path/to/directory
 
 This will delegate the taking of ownership to the user, allowing him to run
-`takeown` to take ownership of any file within the specified paths.
-
-WARNING: if you delegate the taking of ownership of a volume to a user,
-that user may take ownership of the volume itself, and then remove the
-delegation store.  This is not a security issue -- it does not grant the
-user any extra privileges -- but it does prevent future uses of `takeown`
-by unprivileged users in that volume.
+`takeown` to take ownership of any file within the specified paths
 
 REVOKING DELEGATIONS
 --------------------
@@ -85,6 +76,11 @@ SIMULATING TAKING OWNERSHIP
 
 The action of taking ownership can be simulated with flag `-s`.  In this mode,
 `takeown` will print what it would do rather than changing the file system.
+
+VERBOSE
+-------
+
+The action of taking ownership can be made verbose with flag `-v`.
 
 TRACING
 -------

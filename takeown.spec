@@ -1,4 +1,4 @@
-%define ver 0.0.14.1
+%define ver 0.1.0
 %define rel 1%{?dist}
 
 # Work around issue in F35.

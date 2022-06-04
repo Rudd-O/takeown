@@ -1,4 +1,4 @@
-all: cmd/takeown/takeown gnome/takeown.pyc gnome/takeown.pyo
+all: cmd/takeown/takeown
 
 PROGNAME=takeown
 BINDIR=/usr/local/bin
@@ -17,7 +17,7 @@ install-kde:
 	install -m 0644 kde/takeown.desktop $(DESTDIR)$(DATADIR)/kde4/services/ServiceMenus
 	install -m 0644 kde/takeown.desktop $(DESTDIR)$(DATADIR)/kservices5/ServiceMenus
 
-install-gnome: gnome/takeown.pyc gnome/takeown.pyo
+install-gnome:
 	mkdir -p $(DESTDIR)$(DATADIR)/nautilus-python/extensions
 	install -m 0644 gnome/takeown.py* $(DESTDIR)$(DATADIR)/nautilus-python/extensions
 
@@ -34,12 +34,6 @@ cmd/takeown/usage.go: README.md build/gendoc.py
 
 cmd/takeown/takeown: cmd/takeown/usage.go cmd/takeown/*.go
 	cd cmd/takeown && go build && cd ../..
-
-gnome/takeown.pyc: gnome/takeown.py
-	python -m compileall gnome/takeown.py
-
-gnome/takeown.pyo: gnome/takeown.py
-	python -O -m compileall gnome/takeown.py
 
 test: cmd/takeown/takeown
 	cd cmd/takeown && go test && cd ../..
