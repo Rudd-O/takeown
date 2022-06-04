@@ -33,7 +33,7 @@ cmd/takeown/usage.go: README.md build/gendoc.py
 	python build/gendoc.py
 
 cmd/takeown/takeown: cmd/takeown/usage.go cmd/takeown/*.go
-	cd cmd/takeown && go build && cd ../..
+	cd cmd/takeown && go build -mod=vendor && cd ../..
 
 test: cmd/takeown/takeown
 	cd cmd/takeown && go test && cd ../..
