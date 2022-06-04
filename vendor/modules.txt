@@ -1,0 +1,9 @@
+# github.com/pkg/xattr v0.4.7
+## explicit
+github.com/pkg/xattr
+# github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
+## explicit
+github.com/syndtr/gocapability/capability
+# golang.org/x/sys v0.0.0-20220408201424-a24fb2fb8a0f
+golang.org/x/sys/internal/unsafeheader
+golang.org/x/sys/unix
