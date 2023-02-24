@@ -30,7 +30,7 @@ clean:
 	rm -f gnome/takeown.pyc gnome/takeown.pyo cmd/takeown/usage.go *.rpm *.tar.gz
 
 cmd/takeown/usage.go: README.md build/gendoc.py
-	python build/gendoc.py
+	python3 build/gendoc.py
 
 cmd/takeown/takeown: cmd/takeown/usage.go cmd/takeown/*.go
 	cd cmd/takeown && go build -mod=vendor && cd ../..
